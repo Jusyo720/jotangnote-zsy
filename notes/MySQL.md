@@ -67,6 +67,19 @@ cursor.execute(update_sql, ('emailnew', 'name'))
 delete_sql = "DELETE FROM users WHERE name = %s"
 cursor.execute(delete_sql, ('name',))
 ````
+5. **防注入**：不要把用户输入当作SQL代码的一部分；而是把其**只当成数据值**。
+````python
+# ❌ 危险
+username = request.form["username"]
+sql = f"SELECT * FROM users WHERE username = '{username}'"
+cursor.execute(sql)
+````
+````python
+# ✅ 安全
+username = request.form["username"]
+sql = "SELECT * FROM users WHERE username = %s"
+cursor.execute(sql, (username,))
+````
 - **事务提交与资源关闭**
 1. **每次**执行完**增、删、改**操作后，必须显式调用`com.commit()`提交事务，如果是查询操作，则不需要提交。
 2. 在`finally`块中关闭**游标和连接**，释放资源。
