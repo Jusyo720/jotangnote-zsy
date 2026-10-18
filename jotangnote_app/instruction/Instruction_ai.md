@@ -169,3 +169,5 @@ except Exception as e:
 ````
 - 一旦整个流程出错，`current_history.pop()` 把刚才追加的那条用户消息删掉——否则失败的消息会留在历史里污染下次对话。
 - 返回 `500` 错误和具体异常文本。
+
+![test](test12.png)
