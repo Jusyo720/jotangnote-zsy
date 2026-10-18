@@ -1,17 +1,19 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from flask_cors import CORS
 import redis
 import json
 import pika
 import threading
 
 app = Flask(__name__)
+CORS(app)
 app.config["SQLALCHEMY_DATABASE_URI"] = "mysql+pymysql://root:080720zsY_@127.0.0.1:3306/note_app"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
-# ==================== RabbitMQ 配置 ====================
+# RabbitMQ 配置
 RABBITMQ_HOST = "localhost"
 NOTE_QUEUE = "note_operations"
 
@@ -53,10 +55,10 @@ def publish_note_message(message: dict) -> bool:
             pass
 
 
-# ==================== Redis 配置 ====================
+# Redis 配置
 redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
 
-# ==================== 模型定义 ====================
+# 模型定义
 class Note(db.Model):
     __tablename__ = "notes"
     id = db.Column(db.Integer, primary_key=True)
@@ -74,7 +76,7 @@ class User(db.Model):
     password = db.Column(db.String(100), nullable=False)
 
 
-# ==================== 1. 用户注册接口 ====================
+# 1. 用户注册接口 
 @app.route("/api/v1/auth/register", methods=["POST"])
 def register():
     data = request.get_json()
@@ -95,7 +97,7 @@ def register():
     return jsonify({"code": 201, "msg": "注册成功，快去登录吧！"}), 201
 
 
-# ==================== 2. 用户登录接口 ====================
+# 2. 用户登录接口
 @app.route("/api/v1/auth/login", methods=["POST"])
 def login():
     data = request.get_json()
@@ -116,7 +118,24 @@ def login():
     )
 
 
-# ==================== 3. 创建笔记（异步） ====================
+# 3. 创建笔记（异步）
+@app.route('/api/v1/notes', methods=['GET'])
+def get_notes():
+    # 获取前端传过来的 user_id
+    user_id = request.args.get('user_id')
+    notes = Note.query.filter_by(author_id=user_id).all() 
+    
+    result = []
+    for note in notes:
+        result.append({
+            'id': note.id,
+            'title': note.title,
+            'content': note.content,
+            'author_id': note.author_id
+        })
+        
+    return jsonify({'notes': result}), 200
+
 @app.route("/api/v1/notes", methods=["POST"])
 def create_note():
     data = request.get_json()
@@ -152,7 +171,7 @@ def create_note():
     return jsonify({"code": 201, "msg": "RabbitMQ异常，已同步创建", "data": {"id": note.id}}), 201
 
 
-# ==================== 4. 获取笔记（带缓存 & 权限校验） ====================
+# 4. 获取笔记（带缓存 & 权限校验）
 @app.route("/api/v1/notes/<int:note_id>", methods=["GET"])
 def get_note(note_id):
     user_id = request.args.get("user_id")
@@ -189,7 +208,7 @@ def get_note(note_id):
     return jsonify({"code": 200, "msg": "success (数据库查询)", "data": note_data})
 
 
-# ==================== 5. 更新笔记（异步） ====================
+# 5. 更新笔记（异步）
 @app.route("/api/v1/notes/<int:note_id>", methods=["PUT"])
 def update_note(note_id):
     data = request.get_json()
@@ -227,7 +246,7 @@ def update_note(note_id):
     return jsonify({"code": 200, "msg": "RabbitMQ异常，已同步更新"})
 
 
-# ==================== 6. 删除笔记（异步） ====================
+# 6. 删除笔记（异步）
 @app.route("/api/v1/notes/<int:note_id>", methods=["DELETE"])
 def delete_note(note_id):
     user_id = request.args.get("user_id")
@@ -258,7 +277,7 @@ def delete_note(note_id):
     return jsonify({"code": 200, "msg": "RabbitMQ异常，已同步删除"})
 
 
-# ==================== 消费者回调 ====================
+# 消费者回调 
 def callback(ch, method, properties, body):
     message = json.loads(body)
     action = message.get("action")
@@ -333,7 +352,7 @@ def start_consumer():
         print(f"消费者线程无法连接 RabbitMQ: {e}")
 
 
-# ==================== 启动入口 ====================
+# 启动入口
 with app.app_context():
     db.create_all()
 
