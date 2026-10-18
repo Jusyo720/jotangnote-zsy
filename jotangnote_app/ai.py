@@ -1,6 +1,3 @@
-import os
-import sys
-import json
 import os, sys, json
 import pymysql  
 from flask_cors import CORS
