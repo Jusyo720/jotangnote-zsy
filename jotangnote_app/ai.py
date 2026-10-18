@@ -1,9 +1,17 @@
 import os
 import sys
 import json
+import os, sys, json
+import pymysql  
 from flask_cors import CORS
 from flask import Flask, request, jsonify
-from openai import OpenAI  
+from openai import OpenAI
+
+DB_HOST = '127.0.0.1'     
+DB_PORT = 3306            
+DB_USER = 'root'          
+DB_PASS = '080720zsY_' 
+DB_NAME = 'note_app'     
 
 app = Flask(__name__)
 CORS(app)
@@ -55,12 +63,41 @@ tools = [
 
 # 2. 定义 Tool 对应的真实执行逻辑
 def execute_query_note(note_id):
-    fake_note_db = {
-        "1": "Python学习笔记：今天学习了Flask和DeepSeek API的对接。",
-        "2": "生活笔记：明天记得去超市买鸡蛋和牛奶。",
-        "100": "这是一份非常详细的会议记录。"
-    }
-    return fake_note_db.get(str(note_id), "未找到该 ID 的笔记内容")
+    """根据笔记ID真实查询数据库内容"""
+    conn = None
+    try:
+        # 1. 建立数据库连接
+        conn = pymysql.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASS,
+            database=DB_NAME,  
+            charset='utf8mb4'
+        )
+        
+        # 2. 获取游标
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        
+        # 3. 执行SQL查询（表名确认是 note）
+        sql = "SELECT * FROM notes WHERE id = %s"
+        cursor.execute(sql, (note_id,))
+        
+        # 4. 获取结果
+        result = cursor.fetchone()
+        
+        # 5. 返回结果
+        if result:
+            return f"【标题】：{result.get('title', '无标题')} \n【内容】：{result.get('content', '')}"
+        else:
+            return f"未找到 ID 为 {note_id} 的笔记内容"
+            
+    except Exception as e:
+        return f"查询数据库时出错：{str(e)}"
+    finally:
+        # 6. 关闭数据库连接
+        if conn:
+            conn.close()
 
 
 @app.route('/chat', methods=['POST'])
